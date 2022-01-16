@@ -1,5 +1,5 @@
 pipeline {
-  agent { label 'localhost'}
+  agent { label 'master'}
   options {
     skipDefaultCheckout(true)
   }
