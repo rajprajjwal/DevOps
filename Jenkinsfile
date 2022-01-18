@@ -6,7 +6,7 @@ pipeline {
     parameters {
     //choice (name: 'awsCredentials' , choice: ['rajrich926'], description: 'the user id to perform the deployment')
     string(name: 'environment', defaultValue: 'default', description: 'Workspace/environment file to use for deployment')
-    choice(name: 'Region' , choice: ['us-east-1'], description: 'the region to deploy to ')
+    //choice(name: 'Region' , choice: ['us-east-1'], description: 'the region to deploy to ')
     string(name: 'awsAccountId' , defaultValue: ['595753597126'], description: 'the asw account deploy to ')
     string(name: 'notifyEmail' , defaultValue: ['rajrich926@gmail.com'], description: 'the email address for completion status email to  ')
   }
