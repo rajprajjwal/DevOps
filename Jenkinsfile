@@ -1,57 +1,78 @@
 pipeline {
-  agent { label 'master'}
-  options {
-    skipDefaultCheckout(true)
-  }
-    parameters {
-    //choice (name: 'awsCredentials' , choice: ['rajrich926'], description: 'the user id to perform the deployment')
-    string(name: 'environment', defaultValue: 'default', description: 'Workspace/environment file to use for deployment')
-    //choice(name: 'Region' , choice: ['us-east-1'], description: 'the region to deploy to ')
-    string(name: 'awsAccountId' , defaultValue: ['595753597126'], description: 'the asw account deploy to ')
-    string(name: 'notifyEmail' , defaultValue: ['rajrich926@gmail.com'], description: 'the email address for completion status email to  ')
-  }
-  environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
-        TF_IN_AUTOMATION      = '1'
+    agent any
+    tools {
+        "org.jenkinsci.plugins.terraform.TerraformInstallation" "terraform"
     }
-  
-   steps {
-     sshagent(credentials: ['terraform-git']){
-       sh """#!/bin/bash
-       cd module
-       mkdir./.ssh
-       echo "Env Variable for TF setup with AWS using account id"
-       export awsAccountId "${awsAccountId}"
-       export AWS_ACCESS_KEY_ID = "${env:AWS_ACCESS_KEY_ID}"
-       export AWS_SECRET_ACCESS_KEY = "${env:AWS_SECRET_ACCESS_KEY}"
-     }
-   
+    parameters {
+        string(name: 'CONSUL_STATE_PATH', defaultValue: 'applications/state/globo-primary', description: 'Path in Consul for state data')
+        string(name: 'WORKSPACE', defaultValue: 'development', description:'workspace to use in Terraform')
+    }
+
+    environment {
+        TF_HOME = tool('terraform')
+        TF_INPUT = "0"
+        TF_IN_AUTOMATION = "TRUE"
+        TF_VAR_consul_address = "host.docker.internal"
+        TF_LOG = "WARN"
+        CONSUL_HTTP_TOKEN = credentials('applications_consul_token')
+        AWS_ACCESS_KEY_ID = credentials('aws_access_key')
+        AWS_SECRET_ACCESS_KEY = credentials('aws_secret_access_key')
+        PATH = "$TF_HOME:$PATH"
+    }
+
     stages {
-        stage ("terraform init") {
+        stage('ApplicationInit'){
             steps {
-                sh 'terraform init'
+                dir('m8/applications/'){
+                    sh 'terraform --version'
+                    sh "terraform init --backend-config='path=${params.CONSUL_STATE_PATH}'"
+                }
             }
         }
-        stage ("terraform fmt") {
+        stage('ApplicationValidate'){
             steps {
-                sh 'terraform fmt'
+                dir('m8/applications/'){
+                    sh 'terraform validate'
+                }
             }
         }
-        stage ("terraform validate") {
+        stage('ApplicationPlan'){
             steps {
-                sh 'terraform validate'
+                dir('m8/applications/'){
+                    script {
+                        try {
+                           sh "terraform workspace new ${params.WORKSPACE}"
+                        } catch (err) {
+                            sh "terraform workspace select ${params.WORKSPACE}"
+                        }
+                        sh "terraform plan -out terraform-applications.tfplan;echo \$? > status"
+                        stash name: "terraform-applications-plan", includes: "terraform-applications.tfplan"
+                    }
+                }
             }
         }
-        stage ("terrafrom plan") {
+        stage('ApplicationApply'){
             steps {
-                sh 'terraform plan '
+                script{
+                    def apply = false
+                    try {
+                        input message: 'confirm apply', ok: 'Apply Config'
+                        apply = true
+                    } catch (err) {
+                        apply = false
+                        dir('m8/applications/'){
+                            sh "terraform destroy -auto-approve"
+                        }
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                    if(apply){
+                        dir('m8/applications/'){
+                            unstash "terraform-applications-plan"
+                            sh 'terraform apply terraform-applications.tfplan'
+                        }
+                    }
+                }
             }
         }
-        stage ("terraform apply") {
-            steps {
-                sh 'terraform apply --auto-approve'
-            }
-         }
-      }
+    }
 }
