@@ -1,5 +1,5 @@
 pipeline any
-  agent labe
+  agent any
   options {
     skipDefaultCheckout(true)
   }
