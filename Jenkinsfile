@@ -1,5 +1,5 @@
 pipeline any
-  agent any
+  agent { label 'IP name: ip-172-31-84-95.ec2.internal'}
   options {
     skipDefaultCheckout(true)
   }
