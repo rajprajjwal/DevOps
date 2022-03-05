@@ -1,5 +1,5 @@
-pipeline {
-  agent { label 'linux'}
+pipeline any
+  agent labe
   options {
     skipDefaultCheckout(true)
   }
